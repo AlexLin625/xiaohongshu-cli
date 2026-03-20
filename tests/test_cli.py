@@ -214,27 +214,26 @@ class TestCliBasic:
     def test_search_rich_output_shortens_visible_links(self, monkeypatch):
         monkeypatch.setenv("OUTPUT", "rich")
         called = {}
-        monkeypatch.setattr(
-            "xhs_cli.commands.reading.handle_command",
-            lambda ctx, action, render, as_json, as_yaml, short=False: (
-                called.setdefault("short", short),
-                render({
-                    "items": [
-                        {
-                            "id": "69ad061d000000002603326d",
-                            "xsec_token": "very-long-token-value",
-                            "note_card": {
-                                "title": "测试标题",
-                                "user": {"nickname": "tester"},
-                                "interact_info": {"liked_count": "12"},
-                                "type": "normal",
-                            },
-                        }
-                    ],
-                    "has_more": False,
-                }),
-            )[-1],
-        )
+
+        def fake_handle_command(ctx, action, render, as_json, as_yaml, short=False):
+            called["short"] = short
+            render({
+                "items": [
+                    {
+                        "id": "69ad061d000000002603326d",
+                        "xsec_token": "very-long-token-value",
+                        "note_card": {
+                            "title": "测试标题",
+                            "user": {"nickname": "tester"},
+                            "interact_info": {"liked_count": "12"},
+                            "type": "normal",
+                        },
+                    }
+                ],
+                "has_more": False,
+            })
+
+        monkeypatch.setattr("xhs_cli.commands.reading.handle_command", fake_handle_command)
 
         result = runner.invoke(cli, ["search", "openclaw"])
 

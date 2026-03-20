@@ -115,7 +115,7 @@ def _shorten_value(value: Any) -> Any:
         out: dict[str, Any] = {}
         for key, raw in value.items():
             lowered = key.lower()
-            # Keep both rules: explicit high-noise keys and any "*_url" fields.
+            # Drop both rules: explicit high-noise keys and any "*_url" fields.
             if lowered in _SHORT_DROP_KEYS or lowered.endswith("_url"):
                 continue
             shortened = _shorten_value(raw)
