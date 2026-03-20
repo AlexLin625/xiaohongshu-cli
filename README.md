@@ -28,6 +28,7 @@ A CLI for Xiaohongshu (小红书) — search, read, interact, and post via rever
 - 🔔 **Notifications** — unread count, mentions, likes, new followers
 - 🛡️ **Anti-detection** — consistent macOS Chrome fingerprint, `sec-ch-ua` alignment, session-stable browser identity, Gaussian jitter, captcha cooldown, exponential backoff
 - 📊 **Structured output** — commands support `--yaml` and `--json`; non-TTY stdout defaults to YAML
+- ✂️ **Short structured output** — `xhs search/read --short --yaml|--json` removes non-human-readable heavy metadata (e.g. image URLs/tokens)
 - 📦 **Stable envelope** — see [SCHEMA.md](./SCHEMA.md) for `ok/schema_version/data/error`
 
 > **AI Agent Tip:** Prefer `--yaml` for structured output unless strict JSON is required. Non-TTY stdout defaults to YAML automatically.
@@ -75,12 +76,14 @@ xhs search "美食"                      # Search notes
 xhs search "旅行" --sort popular       # Sort: general, popular, latest
 xhs search "穿搭" --type video         # Filter: all, video, image
 xhs search "AI" --page 2              # Pagination
+xhs search "租房" --yaml --short       # Structured output with heavy metadata removed
 xhs search-user "用户名"               # Search users
 xhs topics "美食"                      # Search hashtags/topics
 
 # ─── Reading ──────────────────────────────────────
 xhs read 1                             # Read the 1st result from the last list command
 xhs read <note_id>                     # Read a note (API only)
+xhs read <note_id> --json --short      # JSON output with image URL/token-heavy fields removed
 xhs read "https://www.xiaohongshu.com/explore/xxx?xsec_token=yyy"  # Read by URL (uses URL token)
 xhs comments 1                         # Read comments for the 1st result from the last list command
 xhs comments "<url>"                   # View comments — paste URL to cache/reuse xsec_token
@@ -207,6 +210,7 @@ data: { ... }
 
 When stdout is not a TTY (e.g., piped or invoked by an AI agent), output defaults to YAML.
 Use `OUTPUT=yaml|json|rich|auto` to override.
+For `xhs search` and `xhs read`, add `--short` to strip non-human-readable metadata (such as image URLs and tokens) in structured output to save tokens.
 
 ## Use as AI Agent Skill
 
@@ -326,6 +330,7 @@ The built-in Gaussian jitter delay (~1-1.5s between requests) is intentional to 
 - 🔔 **通知** — 未读数、@、点赞、新关注
 - 🛡️ **反风控** — macOS Chrome 指纹一致性、session 级浏览器身份持久化、高斯抖动延迟、验证码自动冷却、指数退避重试
 - 📊 **结构化输出** — `--yaml` / `--json`，非 TTY 默认输出 YAML
+- ✂️ **精简结构化输出** — `xhs search/read --short --yaml|--json` 会移除图片 URL / token 等高 token 且不可读字段
 - 📦 **稳定 envelope** — 参见 [SCHEMA.md](./SCHEMA.md)
 
 ## 安装
@@ -368,12 +373,14 @@ xhs logout                            # 清除缓存的 Cookie
 # 搜索
 xhs search "美食"                      # 搜索笔记
 xhs search "旅行" --sort popular       # 排序：general, popular, latest
+xhs search "租房" --yaml --short       # 结构化输出并移除高 token 元数据
 xhs search-user "用户名"               # 搜索用户
 xhs topics "美食"                      # 搜索话题
 
 # 阅读
 xhs read 1                             # 阅读最近一次列表里的第 1 条笔记
 xhs read <note_id>                     # 阅读笔记（仅走 API）
+xhs read <note_id> --json --short      # 结构化输出移除图片 URL / token 等字段
 xhs read "https://...?xsec_token=..."  # 粘贴网页 URL 直接阅读（使用 URL token）
 xhs comments 1                         # 查看最近一次列表里的第 1 条笔记评论
 xhs comments "<url>"                   # 查看评论 — 粘贴 URL 以缓存/复用 xsec_token

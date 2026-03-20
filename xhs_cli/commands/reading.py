@@ -55,9 +55,10 @@ TYPE_MAP = {
 @click.option("--sort", type=click.Choice(["general", "popular", "latest"]), default="general", help="Sort order")
 @click.option("--type", "note_type", type=click.Choice(["all", "video", "image"]), default="all", help="Note type")
 @click.option("--page", default=1, help="Page number")
+@click.option("--short", is_flag=True, help="Trim non-human-readable metadata in structured output.")
 @structured_output_options
 @click.pass_context
-def search(ctx, keyword: str, sort: str, note_type: str, page: int, as_json: bool, as_yaml: bool):
+def search(ctx, keyword: str, sort: str, note_type: str, page: int, as_json: bool, as_yaml: bool, short: bool):
     """Search notes by keyword."""
     def _search_action(client):
         result = client.search_notes(
@@ -76,15 +77,17 @@ def search(ctx, keyword: str, sort: str, note_type: str, page: int, as_json: boo
         render=render_search_results,
         as_json=as_json,
         as_yaml=as_yaml,
+        short=short,
     )
 
 
 @click.command()
 @click.argument("id_or_url")
 @click.option("--xsec-token", default="", help="Security token (or reuse a cached token for this note)")
+@click.option("--short", is_flag=True, help="Trim non-human-readable metadata in structured output.")
 @structured_output_options
 @click.pass_context
-def read(ctx, id_or_url: str, xsec_token: str, as_json: bool, as_yaml: bool):
+def read(ctx, id_or_url: str, xsec_token: str, as_json: bool, as_yaml: bool, short: bool):
     """Read a note by ID, URL, or short index."""
     note_id, token, url_source = resolve_note_reference(id_or_url, xsec_token=xsec_token)
     xsec_source = url_source or "pc_feed"
@@ -103,6 +106,7 @@ def read(ctx, id_or_url: str, xsec_token: str, as_json: bool, as_yaml: bool):
         render=render_note,
         as_json=as_json,
         as_yaml=as_yaml,
+        short=short,
     )
 
 

@@ -57,6 +57,7 @@ def handle_command(
     render: Callable[[T], None] | None,
     as_json: bool,
     as_yaml: bool,
+    short: bool = False,
     prefix: str | None = None,
 ):
     """Run a client action, emit structured output if requested, else render."""
@@ -64,7 +65,7 @@ def handle_command(
 
     try:
         data = run_client_action(ctx, action)
-        if not maybe_print_structured(data, as_json=as_json, as_yaml=as_yaml) and render:
+        if not maybe_print_structured(data, as_json=as_json, as_yaml=as_yaml, short=short) and render:
             render(data)
         return data
     except (XhsApiError, NoCookieError) as exc:

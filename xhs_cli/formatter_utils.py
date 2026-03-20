@@ -18,6 +18,17 @@ error_console = Console(stderr=True)
 _stdout = Console()
 _OUTPUT_ENV = "OUTPUT"
 _SCHEMA_VERSION = "1"
+_SHORT_DROP_KEYS = {
+    "avatar",
+    "file_id",
+    "info_list",
+    "stream",
+    "trace_id",
+    "url",
+    "url_default",
+    "url_pre",
+    "xsec_token",
+}
 
 
 # ─── Output format resolution ──────────────────────────────────────────────
@@ -96,11 +107,37 @@ def _normalize_success_payload(data: Any) -> Any:
     return success_payload(data)
 
 
-def maybe_print_structured(data: Any, *, as_json: bool, as_yaml: bool) -> bool:
+def _shorten_value(value: Any) -> Any:
+    """Remove machine-oriented metadata to reduce token-heavy structured output."""
+    if isinstance(value, dict):
+        out: dict[str, Any] = {}
+        for key, raw in value.items():
+            lowered = key.lower()
+            if key in _SHORT_DROP_KEYS or lowered.endswith("_url"):
+                continue
+            shortened = _shorten_value(raw)
+            if shortened in ("", None, [], {}):
+                continue
+            out[key] = shortened
+        return out
+    if isinstance(value, list):
+        out_list = []
+        for item in value:
+            shortened = _shorten_value(item)
+            if shortened in ("", None, [], {}):
+                continue
+            out_list.append(shortened)
+        return out_list
+    return value
+
+
+def maybe_print_structured(data: Any, *, as_json: bool, as_yaml: bool, short: bool = False) -> bool:
     """Print structured output when requested or when stdout is non-TTY."""
     fmt = resolve_output_format(as_json=as_json, as_yaml=as_yaml)
     if not fmt:
         return False
+    if short:
+        data = _shorten_value(data)
     payload = _normalize_success_payload(data)
     if fmt == "json":
         print_json(payload)
