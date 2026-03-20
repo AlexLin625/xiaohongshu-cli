@@ -1,5 +1,7 @@
 """Tests for CLI commands using Click's test runner."""
 
+import json
+
 import pytest
 import yaml
 from click.testing import CliRunner
@@ -211,28 +213,33 @@ class TestCliBasic:
 
     def test_search_rich_output_shortens_visible_links(self, monkeypatch):
         monkeypatch.setenv("OUTPUT", "rich")
+        called = {}
         monkeypatch.setattr(
             "xhs_cli.commands.reading.handle_command",
-            lambda ctx, action, render, as_json, as_yaml, short=False: render({
-                "items": [
-                    {
-                        "id": "69ad061d000000002603326d",
-                        "xsec_token": "very-long-token-value",
-                        "note_card": {
-                            "title": "测试标题",
-                            "user": {"nickname": "tester"},
-                            "interact_info": {"liked_count": "12"},
-                            "type": "normal",
-                        },
-                    }
-                ],
-                "has_more": False,
-            }),
+            lambda ctx, action, render, as_json, as_yaml, short=False: (
+                called.setdefault("short", short),
+                render({
+                    "items": [
+                        {
+                            "id": "69ad061d000000002603326d",
+                            "xsec_token": "very-long-token-value",
+                            "note_card": {
+                                "title": "测试标题",
+                                "user": {"nickname": "tester"},
+                                "interact_info": {"liked_count": "12"},
+                                "type": "normal",
+                            },
+                        }
+                    ],
+                    "has_more": False,
+                }),
+            )[-1],
         )
 
         result = runner.invoke(cli, ["search", "openclaw"])
 
         assert result.exit_code == 0
+        assert called["short"] is False
         assert "search_result/69ad061d" in result.output
         assert "very-long-token-value" not in result.output
 
@@ -354,7 +361,7 @@ class TestCliBasic:
         result = runner.invoke(cli, ["read", "note-1", "--json", "--short"])
 
         assert result.exit_code == 0
-        payload = yaml.safe_load(result.output)
+        payload = json.loads(result.output)
         image = payload["data"]["items"][0]["note_card"]["image_list"][0]
         assert "url" not in image
         assert "stream" not in image
@@ -391,6 +398,7 @@ class TestCliBasic:
                 return FAKE_NOTE_RESPONSE
 
         def fake_handle_command(ctx, action, render, as_json, as_yaml, short=False):
+            called["short"] = short
             action(FakeClient())
             return None
 
@@ -399,6 +407,7 @@ class TestCliBasic:
         result = runner.invoke(cli, ["read", "1"])
 
         assert result.exit_code == 0
+        assert called["short"] is False
         assert called["note_id"] == "note-abc"
         assert called["kwargs"]["xsec_token"] == "token-abc"
         assert called["kwargs"]["xsec_source"] == "pc_search"
