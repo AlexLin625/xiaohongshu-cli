@@ -1,5 +1,7 @@
 """Tests for CLI commands using Click's test runner."""
 
+import json
+
 import pytest
 import yaml
 from click.testing import CliRunner
@@ -211,9 +213,11 @@ class TestCliBasic:
 
     def test_search_rich_output_shortens_visible_links(self, monkeypatch):
         monkeypatch.setenv("OUTPUT", "rich")
-        monkeypatch.setattr(
-            "xhs_cli.commands.reading.handle_command",
-            lambda ctx, action, render, as_json, as_yaml: render({
+        called = {}
+
+        def fake_handle_command(ctx, action, render, as_json, as_yaml, short=False):
+            called["short"] = short
+            render({
                 "items": [
                     {
                         "id": "69ad061d000000002603326d",
@@ -227,14 +231,107 @@ class TestCliBasic:
                     }
                 ],
                 "has_more": False,
-            }),
-        )
+            })
+
+        monkeypatch.setattr("xhs_cli.commands.reading.handle_command", fake_handle_command)
 
         result = runner.invoke(cli, ["search", "openclaw"])
 
         assert result.exit_code == 0
+        assert called["short"] is False
         assert "search_result/69ad061d" in result.output
         assert "very-long-token-value" not in result.output
+
+    def test_search_short_yaml_removes_heavy_image_url_fields(self, monkeypatch):
+        monkeypatch.setenv("OUTPUT", "rich")
+
+        def fake_handle_command(ctx, action, render, as_json, as_yaml, short=False):
+            class FakeClient:
+                def search_notes(self, **kwargs):
+                    return {
+                        "items": [
+                            {
+                                "id": "note-1",
+                                "xsec_token": "token-heavy",
+                                "note_card": {
+                                    "title": "标题",
+                                    "user": {"nickname": "tester", "avatar": "https://avatar.example/a.png"},
+                                    "image_list": [
+                                        {
+                                            "url": "http://example/a.jpg",
+                                            "url_pre": "http://example/a_pre.jpg",
+                                            "url_default": "http://example/a_default.jpg",
+                                            "trace_id": "t1",
+                                            "info_list": [
+                                                {"image_scene": "WB_PRV", "url": "http://example/info.jpg"}
+                                            ],
+                                            "width": 100,
+                                            "height": 200,
+                                        }
+                                    ],
+                                },
+                            }
+                        ]
+                    }
+
+            data = action(FakeClient())
+            from xhs_cli.formatter import maybe_print_structured
+            maybe_print_structured(data, as_json=as_json, as_yaml=as_yaml, short=short)
+
+        monkeypatch.setattr(
+            "xhs_cli.commands.reading.handle_command",
+            fake_handle_command,
+        )
+
+        result = runner.invoke(cli, ["search", "关键字", "--yaml", "--short"])
+
+        assert result.exit_code == 0
+        payload = yaml.safe_load(result.output)
+        item = payload["data"]["items"][0]
+        card = item["note_card"]
+        assert "xsec_token" not in item
+        assert "avatar" not in card["user"]
+        assert "image_list" not in card
+
+    def test_search_short_yaml_drops_image_blocks_entirely(self, monkeypatch):
+        monkeypatch.setenv("OUTPUT", "rich")
+
+        def fake_handle_command(ctx, action, render, as_json, as_yaml, short=False):
+            class FakeClient:
+                def search_notes(self, **kwargs):
+                    return {
+                        "items": [
+                            {
+                                "id": "note-1",
+                                "note_card": {
+                                    "title": "标题",
+                                    "cover": {
+                                        "url_default": "http://example/cover_default.jpg",
+                                        "url_pre": "http://example/cover_pre.jpg",
+                                        "width": 100,
+                                        "height": 200,
+                                    },
+                                    "image_list": [
+                                        {"height": 100, "width": 100, "info_list": [{"url": "http://example/i.jpg"}]}
+                                    ],
+                                },
+                            }
+                        ]
+                    }
+
+            data = action(FakeClient())
+            from xhs_cli.formatter import maybe_print_structured
+            maybe_print_structured(data, as_json=as_json, as_yaml=as_yaml, short=short)
+
+        monkeypatch.setattr("xhs_cli.commands.reading.handle_command", fake_handle_command)
+
+        result = runner.invoke(cli, ["search", "关键字", "--yaml", "--short"])
+
+        assert result.exit_code == 0
+        payload = yaml.safe_load(result.output)
+        card = payload["data"]["items"][0]["note_card"]
+        assert "cover" not in card
+        assert "image_list" not in card
 
     def test_feed_rich_output_shortens_visible_links(self, monkeypatch):
         monkeypatch.setenv("OUTPUT", "rich")
@@ -260,6 +357,48 @@ class TestCliBasic:
         assert result.exit_code == 0
         assert "explore/69ad061d" in result.output
         assert "another-very-long-token" not in result.output
+
+    def test_read_short_json_removes_heavy_image_url_fields(self, monkeypatch):
+        monkeypatch.setenv("OUTPUT", "rich")
+
+        def fake_handle_command(ctx, action, render, as_json, as_yaml, short=False):
+            class FakeClient:
+                def get_note_detail(self, note_id, **kwargs):
+                    return {
+                        "items": [
+                            {
+                                "note_card": {
+                                    "title": "标题",
+                                    "image_list": [
+                                        {
+                                            "url": "http://example/a.jpg",
+                                            "stream": {},
+                                            "file_id": "f1",
+                                            "height": 400,
+                                        }
+                                    ],
+                                    "user": {"nickname": "tester", "avatar": "https://avatar.example/a.png"},
+                                }
+                            }
+                        ]
+                    }
+
+            data = action(FakeClient())
+            from xhs_cli.formatter import maybe_print_structured
+            maybe_print_structured(data, as_json=as_json, as_yaml=as_yaml, short=short)
+
+        monkeypatch.setattr(
+            "xhs_cli.commands.reading.handle_command",
+            fake_handle_command,
+        )
+
+        result = runner.invoke(cli, ["read", "note-1", "--json", "--short"])
+
+        assert result.exit_code == 0
+        payload = json.loads(result.output)
+        note_card = payload["data"]["items"][0]["note_card"]
+        assert "image_list" not in note_card
+        assert "avatar" not in note_card["user"]
 
     def test_read_help_mentions_short_index(self):
         result = runner.invoke(cli, ["read", "--help"])
@@ -289,7 +428,8 @@ class TestCliBasic:
                 called["kwargs"] = kwargs
                 return FAKE_NOTE_RESPONSE
 
-        def fake_handle_command(ctx, action, render, as_json, as_yaml):
+        def fake_handle_command(ctx, action, render, as_json, as_yaml, short=False):
+            called["short"] = short
             action(FakeClient())
             return None
 
@@ -298,6 +438,7 @@ class TestCliBasic:
         result = runner.invoke(cli, ["read", "1"])
 
         assert result.exit_code == 0
+        assert called["short"] is False
         assert called["note_id"] == "note-abc"
         assert called["kwargs"]["xsec_token"] == "token-abc"
         assert called["kwargs"]["xsec_source"] == "pc_search"
