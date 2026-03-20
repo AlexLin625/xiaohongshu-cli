@@ -20,8 +20,10 @@ _OUTPUT_ENV = "OUTPUT"
 _SCHEMA_VERSION = "1"
 _SHORT_DROP_KEYS = {
     "avatar",
+    "cover",
     "file_id",
     "info_list",
+    "image_list",
     "stream",
     "trace_id",
     "url",

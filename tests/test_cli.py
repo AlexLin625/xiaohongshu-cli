@@ -292,12 +292,47 @@ class TestCliBasic:
         card = item["note_card"]
         assert "xsec_token" not in item
         assert "avatar" not in card["user"]
-        assert "url" not in card["image_list"][0]
-        assert "url_pre" not in card["image_list"][0]
-        assert "url_default" not in card["image_list"][0]
-        assert "trace_id" not in card["image_list"][0]
-        assert "info_list" not in card["image_list"][0]
-        assert card["image_list"][0]["width"] == 100
+        assert "image_list" not in card
+
+    def test_search_short_yaml_drops_image_blocks_entirely(self, monkeypatch):
+        monkeypatch.setenv("OUTPUT", "rich")
+
+        def fake_handle_command(ctx, action, render, as_json, as_yaml, short=False):
+            class FakeClient:
+                def search_notes(self, **kwargs):
+                    return {
+                        "items": [
+                            {
+                                "id": "note-1",
+                                "note_card": {
+                                    "title": "标题",
+                                    "cover": {
+                                        "url_default": "http://example/cover_default.jpg",
+                                        "url_pre": "http://example/cover_pre.jpg",
+                                        "width": 100,
+                                        "height": 200,
+                                    },
+                                    "image_list": [
+                                        {"height": 100, "width": 100, "info_list": [{"url": "http://example/i.jpg"}]}
+                                    ],
+                                },
+                            }
+                        ]
+                    }
+
+            data = action(FakeClient())
+            from xhs_cli.formatter import maybe_print_structured
+            maybe_print_structured(data, as_json=as_json, as_yaml=as_yaml, short=short)
+
+        monkeypatch.setattr("xhs_cli.commands.reading.handle_command", fake_handle_command)
+
+        result = runner.invoke(cli, ["search", "关键字", "--yaml", "--short"])
+
+        assert result.exit_code == 0
+        payload = yaml.safe_load(result.output)
+        card = payload["data"]["items"][0]["note_card"]
+        assert "cover" not in card
+        assert "image_list" not in card
 
     def test_feed_rich_output_shortens_visible_links(self, monkeypatch):
         monkeypatch.setenv("OUTPUT", "rich")
@@ -362,12 +397,9 @@ class TestCliBasic:
 
         assert result.exit_code == 0
         payload = json.loads(result.output)
-        image = payload["data"]["items"][0]["note_card"]["image_list"][0]
-        assert "url" not in image
-        assert "stream" not in image
-        assert "file_id" not in image
-        assert image["height"] == 400
-        assert "avatar" not in payload["data"]["items"][0]["note_card"]["user"]
+        note_card = payload["data"]["items"][0]["note_card"]
+        assert "image_list" not in note_card
+        assert "avatar" not in note_card["user"]
 
     def test_read_help_mentions_short_index(self):
         result = runner.invoke(cli, ["read", "--help"])
